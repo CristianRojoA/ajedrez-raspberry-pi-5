@@ -1,0 +1,15 @@
+# Archivos de compilación de Arduino
+applet/
+*.elf
+*.hex
+*.o
+*.a
+
+# Carpetas de VS Code / IDEs
+.vscode/
+.build/
+.arduinoIDE/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
