@@ -1,0 +1,22 @@
+# Changelog - Motor de Ajedrez Autónomo (MAA)
+
+Todos los cambios técnicos y de arquitectura de este proyecto serán documentados en este archivo.
+
+El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto utiliza etiquetas de rol para trazar las responsabilidades:
+* **[DEV]** - Equipo de Desarrollo (Implementación y lógica).
+* **[ARCH]** - Equipo de Arquitectura (Diseño, optimización y hardware).
+
+---
+
+## [Unreleased] - (Trabajo en progreso para Hito 2)
+
+### Añadido (Nuevas características o módulos)
+* ### Cambiado (Modificaciones a código o arquitectura existente)
+* ### Arreglado (Corrección de bugs o cuellos de botella)
+* ---
+
+## [1.0.0] - 2026-04-22 (Entrega Hito 1)
+
+### Añadido
+* **[PM]** Creación y firma del documento SRS (Versión 3.0) y matriz de trazabilidad.
+* **[ARCH]** Definición oficial del stack tecnológico base: Raspberry Pi 5 (4GB), Python 3.11+, Pantalla TFT SPI.
