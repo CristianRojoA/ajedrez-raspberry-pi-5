@@ -4,14 +4,13 @@ Este proyecto de 3er año de Ingeniería en Computación utiliza un **Arduino Me
 
 ## 👥 Integrantes y Roles (Grupo 1)
 * **Project Manager (PM):** Cristian - Coordinación General, Gestión y Documentación.
-* **Arquitectos (ARCH):** Mauricio e Ignacio - Diseño de Hardware, Circuito TFT/SD y Gestión de Memoria Crítica.
-* **Desarrolladores (DEV):** Francisco y Raúl - Motor de Ajedrez (Minimax / Alpha-Beta) e Interfaz Gráfica con SD.
-* **Tester:** Pablo - Control de Calidad, Pruebas de Estrés y Análisis de Datos (Big O Logs).
+* **Arquitectos (ARCH):** Mauricio e Ignacio - Diseño de Hardware, Circuito y Gestión de Memoria Crítica.
+* **Desarrolladores (DEV):** Francisco y Raúl - Motor de Ajedrez (Minimax / Alpha-Beta) e Interfaz Gráfica.
+* **Tester:** Alvaro - Control de Calidad, Pruebas de Estrés y Análisis de Datos (Big O Logs).
 
 ## 🛠️ Tecnologías y Optimización
-* **Microcontrolador:** Arduino Mega 2560 (8KB RAM).
-* **Almacenamiento:** Tarjeta Micro SD para "Libro de Aperturas" (Optimización $O(1)$).
-* **Algoritmo:** Búsqueda Minimax optimizada para mitigar la complejidad exponencial $O(b^d)$.
+* **Microcontrolador:** Raspberry Pi 5 (4GB RAM).
+* **Algoritmo:** Búsqueda Minimax optimizada con Poda Alpha Beta para mitigar la complejidad exponencial O(b^d).
 
 ## 📁 Estructura del Repositorio
 * `/src`: Código fuente principal (.ino).
