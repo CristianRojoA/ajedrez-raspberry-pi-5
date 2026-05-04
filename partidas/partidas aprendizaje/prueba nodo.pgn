@@ -1,0 +1,15 @@
+[Event "Partida IA vs IA"]
+[Site "Ajedrez Kivy"]
+[Date "2026.05.03"]
+[White "Motor Blancas"]
+[Black "Motor Negras"]
+[Result "*"]
+
+1. Nh3 { DAA n=31 p=11 ch=0 d=2 mr=12 cd=20 } Nh6 { DAA n=31 p=11 ch=0 d=2 mr=12 cd=20 }
+2. Rg1 { DAA n=31 p=11 ch=0 d=2 mr=12 cd=20 } Nc6 { DAA n=30 p=11 ch=0 d=2 mr=12 cd=20 }
+3. e3 { DAA n=33 p=11 ch=0 d=2 mr=12 cd=19 } Rg8 { DAA n=69 p=10 ch=0 d=2 mr=12 cd=22 }
+4. b3 { DAA n=32 p=11 ch=0 d=2 mr=12 cd=28 } f5 { DAA n=40 p=11 ch=0 d=2 mr=12 cd=21 }
+5. Bb5 { DAA n=31 p=11 ch=0 d=2 mr=12 cd=29 } Nb4 { DAA n=388 p=10 ch=0 d=2 mr=12 cd=20 }
+6. Bf1 { DAA n=36 p=11 ch=0 d=2 mr=12 cd=33 } c6 { DAA n=38 p=10 ch=1 d=2 mr=12 cd=24 }
+7. Qh5+ { DAA n=37 p=10 ch=0 d=2 mr=12 cd=28 }
+*
