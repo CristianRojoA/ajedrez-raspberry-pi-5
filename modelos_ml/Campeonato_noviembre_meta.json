@@ -1,0 +1,23 @@
+{
+  "nombre": "Campeonato noviembre",
+  "timestamp": "20260503_215401",
+  "config": {
+    "entrenamiento": {
+      "batch_size": 256,
+      "epochs": 50,
+      "learning_rate": 0.001,
+      "paciencia": 8,
+      "validacion": 0.15
+    },
+    "modelo": {
+      "bloques_residuales": 4,
+      "dropout": 0.3,
+      "filtros": 128
+    },
+    "rutas": {
+      "modelos": "D:\\ajedrez_dya\\chees\\modelos_ml",
+      "partidas": "D:\\ajedrez_dya\\chees\\partidas\\partidas aprendizaje"
+    }
+  },
+  "policy_size": 4096
+}

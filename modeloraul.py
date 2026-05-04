@@ -224,12 +224,14 @@ def elegir_movimiento(tablero, turno, profundidad=2, historial=None):
         historial = {}
 
     _search_stats.update({'nodos': 0, 'podas': 0, 'cache_hits': 0,
-                          'profundidad': profundidad, 'movimientos_raiz': 0})
+                          'profundidad': profundidad, 'movimientos_raiz': 0,
+                          'candidatos_disponibles': 0})
 
     legales = _movimientos_legales(tablero, turno)
     if not legales:
         return None
 
+    _search_stats['candidatos_disponibles'] = len(legales)
     random.shuffle(legales)
     legales = legales[:12]
 
@@ -238,24 +240,28 @@ def elegir_movimiento(tablero, turno, profundidad=2, historial=None):
     mejor = None
     if turno == 0:
         mejor_val = float('-inf')
+        alpha_raiz = float('-inf')
         for desde, hasta in legales:
             nuevo = tablero[:]
             hacer_movimiento(nuevo, desde, hasta)
             penal = historial.get(hash_tablero(nuevo), 0) * 30
-            val = _minimax(nuevo, profundidad - 1, 1, float('-inf'), float('inf')) - penal
+            val = _minimax(nuevo, profundidad - 1, 1, alpha_raiz, float('inf')) - penal
             if val > mejor_val:
                 mejor_val = val
                 mejor = (desde, hasta)
+            alpha_raiz = max(alpha_raiz, mejor_val)
     else:
         mejor_val = float('inf')
+        beta_raiz = float('inf')
         for desde, hasta in legales:
             nuevo = tablero[:]
             hacer_movimiento(nuevo, desde, hasta)
             penal = historial.get(hash_tablero(nuevo), 0) * 30
-            val = _minimax(nuevo, profundidad - 1, 0, float('-inf'), float('inf')) + penal
+            val = _minimax(nuevo, profundidad - 1, 0, float('-inf'), beta_raiz) + penal
             if val < mejor_val:
                 mejor_val = val
                 mejor = (desde, hasta)
+            beta_raiz = min(beta_raiz, mejor_val)
 
     return mejor
 

@@ -1,15 +1,39 @@
-# Archivos de compilación de Arduino
+# Arduino
 applet/
-*.elf
-*.hex
-*.o
-*.a
+*.elf *.hex *.o *.a
 
-# Carpetas de VS Code / IDEs
+# IDEs
 .vscode/
 .build/
 .arduinoIDE/
 
-# Archivos de sistema
+# Sistema
 .DS_Store
 Thumbs.db
+
+# Python / entornos virtuales
+.venv*/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Modelos entrenados (archivos grandes)
+modelos_ml/*.keras
+modelos_ml/*.h5
+
+# PGNs de entrenamiento (pueden ser muy grandes)
+partidas/partidas aprendizaje/
+
+# Config auto-generada
+model_config.yaml
+
+# Script de test temporal
+test_modelo.py
+
+# Partidas guardadas
+partidas/*.pgn
+
+# Assets de respaldo
+assets/vocaloid_backup/

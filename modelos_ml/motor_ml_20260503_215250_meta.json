@@ -1,0 +1,27 @@
+{
+  "timestamp": "20260503_215250",
+  "config": {
+    "entrenamiento": {
+      "batch_size": 256,
+      "epochs": 50,
+      "learning_rate": 0.001,
+      "paciencia": 8,
+      "validacion": 0.15
+    },
+    "modelo": {
+      "bloques_residuales": 4,
+      "dropout": 0.3,
+      "filtros": 128
+    },
+    "rutas": {
+      "modelos": "D:\\ajedrez_dya\\chees\\modelos_ml",
+      "partidas": "D:\\ajedrez_dya\\chees\\partidas\\partidas aprendizaje"
+    }
+  },
+  "input_shape": [
+    8,
+    8,
+    14
+  ],
+  "policy_size": 4096
+}
