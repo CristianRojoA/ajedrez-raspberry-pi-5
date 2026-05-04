@@ -50,7 +50,7 @@ SQUARE_SIZE    = BOARD_WIDTH // 8
 PIECE_SIZE     = int(SQUARE_SIZE * 0.85)
 PIECE_OFFSET   = (SQUARE_SIZE - PIECE_SIZE) // 2
 
-ANIM_DURATION = 0.40
+ANIM_DURATION = 0.30
 MOVE_DELAY    = 0.55
 
 LIGHT_SQUARE    = (240/255, 217/255, 181/255, 1)   # chess.com crema
@@ -221,7 +221,7 @@ class MovePanel(BoxLayout):
         self.add_widget(self._btn_guardar)
 
         self._btn_volver = Button(
-            text="← Menú",
+            text="< Menú",
             size_hint=(1, None), height=40,
             background_normal='',
             background_color=(0.25, 0.18, 0.18, 1),
@@ -559,6 +559,7 @@ class ChessBoard(Widget):
         self._coord_cache   = {}
         self._motor_ml      = None   # MotorML si se juega en modo ML
         self._num_mov_ml    = 0
+        self._motor_ml_turno = None  # 0=ML juega blancas, 1=negras, None=ambos
 
         self.bind(pos=self._draw, size=self._draw)
         self._draw()
@@ -672,7 +673,8 @@ class ChessBoard(Widget):
             move, stats = (self._replay_moves[self._replay_idx][:2],
                            self._replay_moves[self._replay_idx][2])
             self._replay_idx += 1
-        elif self._motor_ml is not None:
+        elif self._motor_ml is not None and (
+                self._motor_ml_turno is None or self.turno == self._motor_ml_turno):
             try:
                 mov_ml, dist, valor = self._motor_ml.predecir(
                     self.tablero, self.turno, self._num_mov_ml)
@@ -975,7 +977,7 @@ class MLScreen(Screen):
         back_row = BoxLayout(orientation='horizontal',
                              size_hint=(1, None), height=44)
         btn_back = Button(
-            text="← Tipo de análisis", size_hint=(None, 1), width=210,
+            text="< Tipo de análisis", size_hint=(None, 1), width=210,
             background_normal='', background_color=(0.22, 0.22, 0.30, 1),
             color=(0.80, 0.80, 0.92, 1), font_size=13, bold=True,
         )
@@ -1054,14 +1056,15 @@ class EntrenarScreen(Screen):
             self._bg = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._upd_bg, size=self._upd_bg, on_enter=self._on_enter)
 
-        root = BoxLayout(orientation='vertical',
-                         padding=[40, 20, 40, 20], spacing=8)
+        # Outer: fondo completo con back+titulo
+        outer = BoxLayout(orientation='vertical',
+                          padding=[40, 20, 40, 12], spacing=8)
 
-        # Back + título
+        # Back + título (ancho completo)
         back_row = BoxLayout(orientation='horizontal',
                              size_hint=(1, None), height=44)
         btn_back = Button(
-            text="← ML", size_hint=(None, 1), width=90,
+            text="< ML", size_hint=(None, 1), width=90,
             background_normal='', background_color=(0.22, 0.22, 0.30, 1),
             color=(0.80, 0.80, 0.92, 1), font_size=13, bold=True,
         )
@@ -1070,8 +1073,15 @@ class EntrenarScreen(Screen):
         back_row.add_widget(Label(
             text="Entrenar Modelo",
             font_size=22, bold=True, color=(0.92, 0.82, 0.45, 1),
+            halign='center',
         ))
-        root.add_widget(back_row)
+        back_row.add_widget(Widget(size_hint=(None, 1), width=90))
+        outer.add_widget(back_row)
+
+        # Contenedor central de ancho fijo (900 px centrado)
+        root = BoxLayout(orientation='vertical',
+                         size_hint=(None, 1), width=900,
+                         pos_hint={'center_x': 0.5}, spacing=10)
 
         # ── Continuar desde modelo existente ─────────────────────────────────
         root.add_widget(Label(
@@ -1081,7 +1091,7 @@ class EntrenarScreen(Screen):
             halign='left', valign='middle',
         ))
         base_row = BoxLayout(orientation='horizontal',
-                             size_hint=(1, None), height=36, spacing=8)
+                             size_hint=(1, None), height=40, spacing=8)
         self._lbl_base = Label(
             text="Nuevo modelo desde cero",
             font_size=12, color=(0.55, 0.80, 0.55, 1),
@@ -1090,16 +1100,16 @@ class EntrenarScreen(Screen):
         self._lbl_base.bind(size=lambda l, s: setattr(l, 'text_size', (s[0], None)))
         btn_elegir_base = Button(
             text="Elegir modelo base",
-            size_hint=(None, 1), width=160,
-            background_normal='', background_color=(0.28, 0.28, 0.45, 1),
-            color=(0.85, 0.85, 1.0, 1), font_size=12,
+            size_hint=(None, 1), width=180,
+            background_normal='', background_color=(0.28, 0.28, 0.48, 1),
+            color=(0.85, 0.85, 1.0, 1), font_size=13, bold=True,
         )
         btn_elegir_base.bind(on_press=self._popup_elegir_base)
         btn_limpiar_base = Button(
-            text="✕",
-            size_hint=(None, 1), width=36,
-            background_normal='', background_color=(0.40, 0.18, 0.18, 1),
-            color=(1, 0.7, 0.7, 1), font_size=14, bold=True,
+            text="Limpiar",
+            size_hint=(None, 1), width=80,
+            background_normal='', background_color=(0.45, 0.14, 0.14, 1),
+            color=(1, 0.75, 0.75, 1), font_size=12,
         )
         btn_limpiar_base.bind(on_press=self._limpiar_base)
         base_row.add_widget(self._lbl_base)
@@ -1126,16 +1136,16 @@ class EntrenarScreen(Screen):
 
         # Botones sel/desel
         sel_row = BoxLayout(orientation='horizontal',
-                            size_hint=(1, None), height=36, spacing=8)
+                            size_hint=(1, None), height=38, spacing=8)
         btn_all  = Button(
             text="Seleccionar todo",
-            background_normal='', background_color=(0.20, 0.30, 0.20, 1),
-            color=(0.80, 1.0, 0.80, 1), font_size=12,
+            background_normal='', background_color=(0.18, 0.28, 0.18, 1),
+            color=(0.80, 1.0, 0.80, 1), font_size=13,
         )
         btn_none = Button(
-            text="Deseleccionar",
-            background_normal='', background_color=(0.30, 0.18, 0.18, 1),
-            color=(1.0, 0.80, 0.80, 1), font_size=12,
+            text="Deseleccionar todo",
+            background_normal='', background_color=(0.28, 0.14, 0.14, 1),
+            color=(1.0, 0.80, 0.80, 1), font_size=13,
         )
         btn_all.bind(on_press=lambda _: self._seleccionar(True))
         btn_none.bind(on_press=lambda _: self._seleccionar(False))
@@ -1146,13 +1156,14 @@ class EntrenarScreen(Screen):
         # Botón entrenar
         self._btn_entrenar = Button(
             text="Iniciar Entrenamiento",
-            size_hint=(0.50, None), height=56,
-            pos_hint={'center_x': 0.5},
+            size_hint=(1, None), height=58,
             background_normal='', background_color=(0.18, 0.68, 0.28, 1),
             color=(1, 1, 1, 1), font_size=20, bold=True,
         )
         self._btn_entrenar.bind(on_press=self._iniciar_entrenamiento)
         root.add_widget(self._btn_entrenar)
+
+        outer.add_widget(root)
 
         # Log de progreso
         root.add_widget(Label(
@@ -1173,7 +1184,7 @@ class EntrenarScreen(Screen):
                                       size_hint=(1, None), height=0,
                                       spacing=6, opacity=0)
         root.add_widget(self._guardar_box)
-        self.add_widget(root)
+        self.add_widget(outer)
 
     def _upd_bg(self, *_):
         self._bg.pos  = self.pos
@@ -1405,14 +1416,15 @@ class ProbarModeloScreen(Screen):
             self._bg = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._upd_bg, size=self._upd_bg, on_enter=self._on_enter)
 
-        root = BoxLayout(orientation='vertical',
-                         padding=[80, 40, 80, 40], spacing=16)
+        # Outer: fondo completo con back+titulo
+        outer = BoxLayout(orientation='vertical',
+                          padding=[40, 20, 40, 20], spacing=12)
 
-        # Back + título
+        # Back + título (ancho completo)
         back_row = BoxLayout(orientation='horizontal',
                              size_hint=(1, None), height=44)
         btn_back = Button(
-            text="← ML", size_hint=(None, 1), width=90,
+            text="< ML", size_hint=(None, 1), width=90,
             background_normal='', background_color=(0.22, 0.22, 0.30, 1),
             color=(0.80, 0.80, 0.92, 1), font_size=13, bold=True,
         )
@@ -1421,13 +1433,21 @@ class ProbarModeloScreen(Screen):
         back_row.add_widget(Label(
             text="Probar Modelo",
             font_size=22, bold=True, color=(0.92, 0.82, 0.45, 1),
+            halign='center',
         ))
-        root.add_widget(back_row)
+        back_row.add_widget(Widget(size_hint=(None, 1), width=90))
+        outer.add_widget(back_row)
+
+        # Contenedor central de ancho fijo (800 px centrado)
+        root = BoxLayout(orientation='vertical',
+                         size_hint=(None, 1), width=800,
+                         pos_hint={'center_x': 0.5}, spacing=14)
 
         root.add_widget(Label(
-            text="Selecciona el modelo que quieres probar en partida:",
+            text="Selecciona el modelo y el color que jugará contra el minimax:",
             font_size=13, color=(0.70, 0.70, 0.85, 1),
             size_hint=(1, None), height=28,
+            halign='center',
         ))
 
         # Lista de modelos
@@ -1439,17 +1459,45 @@ class ProbarModeloScreen(Screen):
         mod_scroll.add_widget(self._mod_grid)
         root.add_widget(mod_scroll)
 
+        # Selector de color
+        self._ml_turno = 0  # 0=blancas, 1=negras
+        color_row = BoxLayout(orientation='horizontal',
+                              size_hint=(1, None), height=44, spacing=6)
+        color_row.add_widget(Label(
+            text="ML juega con:",
+            font_size=13, color=(0.75, 0.75, 0.90, 1),
+            size_hint=(None, 1), width=140,
+            halign='right', valign='middle',
+        ))
+        self._btn_blancas = Button(
+            text="Blancas",
+            size_hint=(1, 1),
+            background_normal='', background_color=(0.25, 0.50, 0.25, 1),
+            color=(1, 1, 1, 1), font_size=14, bold=True,
+        )
+        self._btn_negras = Button(
+            text="Negras",
+            size_hint=(1, 1),
+            background_normal='', background_color=(0.18, 0.18, 0.26, 1),
+            color=(0.75, 0.75, 0.90, 1), font_size=14,
+        )
+        self._btn_blancas.bind(on_press=lambda _: self._set_color(0))
+        self._btn_negras.bind(on_press=lambda _: self._set_color(1))
+        color_row.add_widget(self._btn_blancas)
+        color_row.add_widget(self._btn_negras)
+        root.add_widget(color_row)
+
         self._btn_probar = Button(
-            text="Probar Modelo Seleccionado",
-            size_hint=(0.55, None), height=64,
-            pos_hint={'center_x': 0.5},
+            text="Iniciar batalla  ML vs Minimax",
+            size_hint=(1, None), height=64,
             background_normal='', background_color=(0.18, 0.48, 0.78, 1),
             color=(1, 1, 1, 1), font_size=20, bold=True,
             disabled=True,
         )
         self._btn_probar.bind(on_press=self._probar)
         root.add_widget(self._btn_probar)
-        self.add_widget(root)
+        outer.add_widget(root)
+        self.add_widget(outer)
 
     def _upd_bg(self, *_):
         self._bg.pos  = self.pos
@@ -1488,10 +1536,10 @@ class ProbarModeloScreen(Screen):
             btn.bind(on_press=lambda b, r=ruta: self._seleccionar(r))
             self._mod_btns[ruta] = btn
             btn_del = Button(
-                text="🗑",
-                size_hint=(None, 1), width=48,
-                background_normal='', background_color=(0.40, 0.14, 0.14, 1),
-                color=(1, 0.6, 0.6, 1), font_size=18,
+                text="Borrar",
+                size_hint=(None, 1), width=80,
+                background_normal='', background_color=(0.55, 0.12, 0.12, 1),
+                color=(1, 0.82, 0.82, 1), font_size=13, bold=True,
             )
             btn_del.bind(on_press=lambda _, r=ruta: self._confirmar_borrar(r))
             fila.add_widget(btn)
@@ -1545,11 +1593,30 @@ class ProbarModeloScreen(Screen):
         btn_no.bind(on_press=popup.dismiss)
         popup.open()
 
+    def _set_color(self, turno):
+        self._ml_turno = turno
+        if turno == 0:
+            self._btn_blancas.background_color = (0.25, 0.50, 0.25, 1)
+            self._btn_blancas.bold = True
+            self._btn_negras.background_color  = (0.18, 0.18, 0.26, 1)
+            self._btn_negras.bold = False
+        else:
+            self._btn_negras.background_color  = (0.20, 0.20, 0.55, 1)
+            self._btn_negras.bold = True
+            self._btn_blancas.background_color = (0.18, 0.18, 0.26, 1)
+            self._btn_blancas.bold = False
+
     def _probar(self, *_):
         if not self._sel_ruta:
             return
-        App.get_running_app().ml_model_path = self._sel_ruta
-        self.manager.current = 'menu'
+        app = App.get_running_app()
+        app.ml_model_path = self._sel_ruta
+        app.ml_turno      = self._ml_turno
+        app.game_mode     = 'ml'
+        assets_dir = SKINS[DEFAULT_SKIN]
+        game = self.manager.get_screen('game')
+        game.setup(assets_dir, 'ml')
+        self.manager.current = 'game'
 
 
 class MenuScreen(Screen):
@@ -1569,7 +1636,7 @@ class MenuScreen(Screen):
         # Fila superior: botón volver al modo
         back_row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=44)
         btn_back = Button(
-            text="← Tipo de análisis",
+            text="< Tipo de análisis",
             size_hint=(None, 1), width=200,
             background_normal='',
             background_color=(0.22, 0.22, 0.30, 1),
@@ -1758,7 +1825,7 @@ class PartidasScreen(Screen):
         # ── Cabecera ──────────────────────────────────────────────────────────
         header = BoxLayout(orientation='horizontal', size_hint=(1, None), height=56)
         btn_volver = Button(
-            text="← Volver",
+            text="< Volver",
             size_hint=(None, 1), width=140,
             background_normal='',
             background_color=self.COLOR_VOLVER,
@@ -1957,7 +2024,8 @@ class GameScreen(Screen):
                 import tensor_aprendizaje
                 motor = tensor_aprendizaje.MotorML()
                 if motor.cargar_modelo(app.ml_model_path):
-                    board._motor_ml = motor
+                    board._motor_ml       = motor
+                    board._motor_ml_turno = getattr(app, 'ml_turno', None)
             except Exception as e:
                 print(f"Error cargando motor ML: {e}")
 
@@ -2007,8 +2075,9 @@ class GameScreen(Screen):
 
 
 class ChessApp(App):
-    game_mode    = 'minimax'  # se actualiza en ModeScreen._elegir
-    ml_model_path = None      # ruta del modelo seleccionado en ProbarModeloScreen
+    game_mode     = 'minimax'  # se actualiza en ModeScreen._elegir
+    ml_model_path = None       # ruta del modelo seleccionado en ProbarModeloScreen
+    ml_turno      = 0          # 0=ML juega blancas, 1=ML juega negras
 
     def build(self):
         self.title = "Ajedrez - Kivy"
