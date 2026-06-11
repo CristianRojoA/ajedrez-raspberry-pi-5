@@ -3,7 +3,8 @@ from vista_paneles import ChatPanel, MovePanel
 from vista_tablero import ChessBoard
 from vista_screens_inicio import ModeScreen, MLScreen
 from vista_screens_ml import EntrenarScreen, ProbarModeloScreen
-from vista_screens_juego import MenuScreen, VideoScreen, PartidasScreen, GameScreen
+from vista_screens_juego import (MenuScreen, VideoScreen, PartidasScreen,
+                                 GameScreen, LoadingScreen)
 
 
 class ChessApp(App):
@@ -22,6 +23,7 @@ class ChessApp(App):
         sm.add_widget(VideoScreen(name='video'))
         sm.add_widget(GameScreen(name='game'))
         sm.add_widget(PartidasScreen(name='partidas'))
+        sm.add_widget(LoadingScreen(name='loading'))
         return sm
 
     def pause_board(self):

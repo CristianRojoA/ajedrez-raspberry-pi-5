@@ -638,6 +638,16 @@ class ProbarModeloScreen(Screen):
         app.ml_turno      = self._ml_turno
         app.game_mode     = 'ml'
         assets_dir = SKINS[self._selected_skin]
-        game = self.manager.get_screen('game')
-        game.setup(assets_dir, 'ml')
-        self.manager.current = 'game'
+        ruta       = self._sel_ruta
+        game       = self.manager.get_screen('game')
+        loading    = self.manager.get_screen('loading')
+
+        from vista_screens_juego import cargar_motor_ml
+        loading.start(
+            "Cargando modelo",
+            trabajo_hilo=lambda: cargar_motor_ml(ruta),
+            trabajo_ui=lambda motor: game.setup(assets_dir, 'ml', motor_ml=motor),
+            al_terminar=lambda: setattr(self.manager, 'current', 'game'),
+            al_error=lambda e: setattr(self.manager, 'current', 'probar'),
+        )
+        self.manager.current = 'loading'
