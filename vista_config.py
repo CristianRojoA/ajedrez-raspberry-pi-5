@@ -34,7 +34,7 @@ from modeloraul import (inicializar_ajedrez, elegir_movimiento,
 import partidas_pgn
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
-PARTIDAS_DIR    = r"D:\ajedrez_dya\chees\partidas"
+PARTIDAS_DIR    = os.path.join(BASE_DIR, 'partidas')
 PARTIDAS_DIR_ML = os.path.join(BASE_DIR, 'partidas', 'partidas aprendizaje')
 MODELOS_DIR_ML  = os.path.join(BASE_DIR, 'modelos_ml')
 

@@ -3,6 +3,132 @@ from vista_paneles import ChatPanel, MovePanel
 from vista_tablero import ChessBoard
 
 
+def cargar_motor_ml(model_path):
+    """Importa TensorFlow y carga el modelo. Pensado para ejecutarse en un
+    hilo de fondo: el primer import de tensorflow tarda varios segundos."""
+    import tensor_aprendizaje
+    motor = tensor_aprendizaje.MotorML()
+    if motor.cargar_modelo(model_path):
+        return motor
+    return None
+
+
+class LoadingScreen(Screen):
+    """Pantalla de carga intermedia. El trabajo pesado que no toca la UI
+    (cargar modelo ML, parsear PGN) corre en un hilo de fondo; la
+    construcción de widgets se hace después en el hilo principal."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._trabajo_hilo = None
+        self._trabajo_ui   = None
+        self._al_terminar  = None
+        self._al_error     = None
+        self._dots_ev      = None
+        self._dots         = 0
+
+        with self.canvas.before:
+            Color(*UI_BG_PAGE)
+            self._bg = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self._upd_bg, size=self._upd_bg)
+
+        root = BoxLayout(orientation='vertical', padding=[60, 50, 60, 50])
+        root.add_widget(Widget(size_hint=(1, 1)))
+
+        self._titulo = Label(
+            text="Cargando",
+            font_size=54, bold=True,
+            color=UI_NAVY,
+            size_hint=(1, None), height=90,
+        )
+        root.add_widget(self._titulo)
+
+        self._detalle = Label(
+            text="",
+            font_size=18,
+            color=UI_TEXT_SOFT,
+            size_hint=(1, None), height=40,
+        )
+        root.add_widget(self._detalle)
+
+        root.add_widget(Widget(size_hint=(1, 1)))
+        self.add_widget(root)
+
+    def _upd_bg(self, *_):
+        self._bg.pos  = self.pos
+        self._bg.size = self.size
+
+    def start(self, mensaje, trabajo_hilo=None, trabajo_ui=None,
+              al_terminar=None, al_error=None):
+        """Configura la carga. El llamador debe poner manager.current = 'loading'.
+
+        mensaje      : texto a mostrar (p.ej. "Preparando la partida")
+        trabajo_hilo : callable sin tocar UI, corre en hilo de fondo; su
+                       resultado se pasa a trabajo_ui
+        trabajo_ui   : callable(resultado) que corre en el hilo principal
+        al_terminar  : callable() final, normalmente cambia de pantalla
+        al_error     : callable(exc) si algo falla
+        """
+        self._titulo.text   = mensaje
+        self._detalle.text  = ""
+        self._dots          = 0
+        self._trabajo_hilo  = trabajo_hilo
+        self._trabajo_ui    = trabajo_ui
+        self._al_terminar   = al_terminar
+        self._al_error      = al_error
+
+    def on_enter(self):
+        self._dots_ev = Clock.schedule_interval(self._animar, 0.35)
+        # Dejar que la pantalla se pinte antes de empezar el trabajo
+        Clock.schedule_once(self._ejecutar, 0.1)
+
+    def on_leave(self):
+        if self._dots_ev:
+            self._dots_ev.cancel()
+            self._dots_ev = None
+
+    def _animar(self, *_):
+        self._dots = (self._dots + 1) % 4
+        base = self._titulo.text.rstrip('.')
+        self._titulo.text = base + '.' * self._dots
+
+    def _ejecutar(self, *_):
+        if self._trabajo_hilo is not None:
+            threading.Thread(target=self._correr_hilo, daemon=True).start()
+        else:
+            self._fase_ui(None)
+
+    def _correr_hilo(self):
+        try:
+            resultado = self._trabajo_hilo()
+        except Exception as e:
+            Clock.schedule_once(lambda _, exc=e: self._fallar(exc))
+            return
+        Clock.schedule_once(lambda _: self._fase_ui(resultado))
+
+    def _fase_ui(self, resultado):
+        self._detalle.text = "Preparando tablero..."
+        # Un frame más para que se vea el cambio de mensaje
+        Clock.schedule_once(lambda _: self._terminar(resultado), 0.05)
+
+    def _terminar(self, resultado):
+        try:
+            if self._trabajo_ui:
+                self._trabajo_ui(resultado)
+        except Exception as e:
+            self._fallar(e)
+            return
+        if self._al_terminar:
+            self._al_terminar()
+
+    def _fallar(self, exc):
+        print(f"Error en pantalla de carga: {exc}")
+        if self._al_error:
+            self._al_error(exc)
+        else:
+            self.manager.current = 'mode'
+
+
 class MenuScreen(Screen):
 
     def __init__(self, **kwargs):
@@ -106,17 +232,36 @@ class MenuScreen(Screen):
 
     def _start_game(self, *_):
         assets_dir = SKINS[self._selected]
-        mode       = App.get_running_app().game_mode
+        app        = App.get_running_app()
+        mode       = app.game_mode
         game       = self.manager.get_screen('game')
-        game.setup(assets_dir, mode)
+        loading    = self.manager.get_screen('loading')
 
-        video_path = os.path.join(assets_dir, 'world_is_mine_bw.mp4')
-        if self._selected == 'vocaloid' and os.path.isfile(video_path):
-            game.pause_board()
-            self.manager.get_screen('video').play(video_path)
-            self.manager.current = 'video'
-        else:
-            self.manager.current = 'game'
+        trabajo_hilo = None
+        if mode == 'ml' and getattr(app, 'ml_model_path', None):
+            ruta = app.ml_model_path
+            trabajo_hilo = lambda: cargar_motor_ml(ruta)
+
+        def trabajo_ui(motor):
+            game.setup(assets_dir, mode, motor_ml=motor)
+
+        def al_terminar():
+            video_path = os.path.join(assets_dir, 'world_is_mine_bw.mp4')
+            if self._selected == 'vocaloid' and os.path.isfile(video_path):
+                game.pause_board()
+                self.manager.get_screen('video').play(video_path)
+                self.manager.current = 'video'
+            else:
+                self.manager.current = 'game'
+
+        loading.start(
+            "Preparando la partida",
+            trabajo_hilo=trabajo_hilo,
+            trabajo_ui=trabajo_ui,
+            al_terminar=al_terminar,
+            al_error=lambda e: setattr(self.manager, 'current', 'menu'),
+        )
+        self.manager.current = 'loading'
 
     def _open_partidas(self, *_):
         self.manager.get_screen('partidas').cargar_lista()
@@ -379,19 +524,36 @@ class PartidasScreen(Screen):
         ruta       = os.path.join(PARTIDAS_DIR, self._seleccionada)
         assets_dir = SKINS[self._selected_skin]
         game       = self.manager.get_screen('game')
-        try:
-            game.setup_replay(ruta, assets_dir)
-        except Exception as e:
-            self._lista.clear_widgets()
-            self._item_buttons.clear()
-            self._lista.add_widget(Label(
-                text=f"Error al cargar la partida:\n{e}",
-                size_hint=(1, None), height=60,
-                color=(0.90, 0.40, 0.25, 1),
-                font_size=13,
-            ))
-            return
-        self.manager.current = 'game'
+        loading    = self.manager.get_screen('loading')
+        mode       = App.get_running_app().game_mode
+
+        def trabajo_ui(movs):
+            game.setup(assets_dir, mode)
+            game._board._replay_moves = movs
+            game._board._replay_idx   = 0
+
+        def al_error(e):
+            self.manager.current = 'partidas'
+            self._mostrar_error(e)
+
+        loading.start(
+            "Cargando partida",
+            trabajo_hilo=lambda: partidas_pgn.pgn_a_movimientos(ruta),
+            trabajo_ui=trabajo_ui,
+            al_terminar=lambda: setattr(self.manager, 'current', 'game'),
+            al_error=al_error,
+        )
+        self.manager.current = 'loading'
+
+    def _mostrar_error(self, e):
+        self._lista.clear_widgets()
+        self._item_buttons.clear()
+        self._lista.add_widget(Label(
+            text=f"Error al cargar la partida:\n{e}",
+            size_hint=(1, None), height=60,
+            color=(0.90, 0.40, 0.25, 1),
+            font_size=13,
+        ))
 
 
 class GameScreen(Screen):
@@ -400,7 +562,7 @@ class GameScreen(Screen):
         super().__init__(**kwargs)
         self._board = None
 
-    def setup(self, assets_dir, mode='minimax'):
+    def setup(self, assets_dir, mode='minimax', motor_ml=None):
         self.clear_widgets()
         self._board = None
         is_ml = (mode == 'ml')
@@ -419,17 +581,17 @@ class GameScreen(Screen):
             size_hint=(1, 1),       # ocupa todo el board_row; _draw adapta el tamaño
         )
 
-        # Cargar motor ML si hay un modelo seleccionado
+        # Motor ML: idealmente llega precargado desde la pantalla de carga;
+        # si no, se carga aquí (bloquea la UI, sólo como respaldo)
         app = App.get_running_app()
-        if is_ml and getattr(app, 'ml_model_path', None):
+        if is_ml and motor_ml is None and getattr(app, 'ml_model_path', None):
             try:
-                import tensor_aprendizaje
-                motor = tensor_aprendizaje.MotorML()
-                if motor.cargar_modelo(app.ml_model_path):
-                    board._motor_ml       = motor
-                    board._motor_ml_turno = getattr(app, 'ml_turno', None)
+                motor_ml = cargar_motor_ml(app.ml_model_path)
             except Exception as e:
                 print(f"Error cargando motor ML: {e}")
+        if is_ml and motor_ml is not None:
+            board._motor_ml       = motor_ml
+            board._motor_ml_turno = getattr(app, 'ml_turno', None)
 
         board_row.add_widget(board)
 
