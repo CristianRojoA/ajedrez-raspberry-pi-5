@@ -1,4 +1,5 @@
 from vista_config import *
+from modeloraul import guardar_csv, guardar_metrica_turno, reset_metricas
 
 
 class ChessBoard(Widget):
@@ -33,6 +34,7 @@ class ChessBoard(Widget):
         self._history       = []
         self._game_over     = False
         self._game_over_msg = ""
+        self._csv_generado  = False
 
         self._replay_moves  = None   # list[(desde,hasta)] o None → modo normal
         self._replay_idx    = 0
@@ -136,6 +138,9 @@ class ChessBoard(Widget):
     # ── Turno ─────────────────────────────────────────────────────────────────
 
     def _next_move(self, *_):
+        if self._game_over:
+            return
+
         self._pending_event = None
         if self._paused:
             return
@@ -147,6 +152,11 @@ class ChessBoard(Widget):
                    if est == "JAQUE_MATE" else "Tablas por ahogado")
             self._game_over     = True
             self._game_over_msg = msg
+            
+            if not self._csv_generado:
+                guardar_csv()
+                self._csv_generado = True
+            
             if self.on_status_cb:
                 self.on_status_cb(msg)
             self._draw()
@@ -158,6 +168,11 @@ class ChessBoard(Widget):
             msg = "Tablas por repetición"
             self._game_over     = True
             self._game_over_msg = msg
+            
+            if not self._csv_generado:
+                guardar_csv()
+                self._csv_generado = True
+                
             if self.on_status_cb:
                 self.on_status_cb(msg)
             self._draw()
@@ -192,10 +207,12 @@ class ChessBoard(Widget):
                 print(f"Error motor ML: {e}")
                 return
         else:
+            reset_metricas()
             move = elegir_movimiento(self.tablero, self.turno, historial=self._historial)
             stats = get_last_stats()
             if move is None:
                 return
+            guardar_metrica_turno(len(self._history))
 
         desde, hasta  = move
         board_before  = self.tablero[:]

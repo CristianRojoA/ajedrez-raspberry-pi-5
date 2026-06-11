@@ -1,4 +1,10 @@
 import random
+import time
+import csv
+import os
+import gc
+
+from datetime import datetime
 
 # Códigos: Torre=4, Caballo=2, Alfil=3, Dama=5, Rey=6, Peón=1  (negativos = negras)
 
@@ -169,7 +175,21 @@ def estado_juego(tablero, turno):
 _PESOS = {1: 1, 2: 3, 3: 3, 4: 5, 5: 9, 6: 100}
 
 def _evaluar(tablero):
-    return sum(_PESOS.get(abs(p), 0) * (1 if p > 0 else -1) for p in tablero if p)
+
+    t0 = time.perf_counter_ns()
+
+    valor = sum(
+        _PESOS.get(abs(p), 0) * (1 if p > 0 else -1)
+        for p in tablero
+        if p
+    )
+
+    t1 = time.perf_counter_ns()
+
+    _metricas_actuales['evaluacion_us'] += (t1 - t0) // 1000
+    _metricas_actuales['evaluacion_calls'] += 1
+
+    return valor
 
 
 # ── Minimax con alfa-beta, memoización e instrumentación ─────────────────────
@@ -178,19 +198,50 @@ _cache_minimax = {}
 _search_stats  = {'nodos': 0, 'podas': 0, 'cache_hits': 0,
                   'profundidad': 0, 'movimientos_raiz': 0}
 
+_historial_metricas = []
+
+_metricas_actuales = {
+    'evaluacion_us': 0,
+    'minimax_us': 0,
+
+    'evaluacion_calls': 0,
+    'minimax_calls': 0
+}
+
+def reset_metricas():
+    _metricas_actuales['evaluacion_us'] = 0
+    _metricas_actuales['minimax_us'] = 0
+
+    _metricas_actuales['evaluacion_calls'] = 0
+    _metricas_actuales['minimax_calls'] = 0
+
 def _minimax(tablero, prof, turno, alpha, beta):
+    
+    t0 = time.perf_counter_ns()
+
+    _metricas_actuales['minimax_calls'] += 1
+    
     key = (tuple(tablero), prof, turno)
     if key in _cache_minimax:
         _search_stats['cache_hits'] += 1
+        t1 = time.perf_counter_ns()
+
+        _metricas_actuales['minimax_us'] += (t1 - t0) // 1000
         return _cache_minimax[key]
 
     if prof == 0:
         _search_stats['nodos'] += 1
+        t1 = time.perf_counter_ns()
+
+        _metricas_actuales['minimax_us'] += (t1 - t0) // 1000
         return _evaluar(tablero)
 
     legales = _movimientos_legales(tablero, turno)
     if not legales:
         _search_stats['nodos'] += 1
+        t1 = time.perf_counter_ns()
+
+        _metricas_actuales['minimax_us'] += (t1 - t0) // 1000
         return _evaluar(tablero)
 
     if turno == 0:  # Blancas: maximizar
@@ -215,6 +266,9 @@ def _minimax(tablero, prof, turno, alpha, beta):
                 break
 
     _cache_minimax[key] = val
+    t1 = time.perf_counter_ns()
+
+    _metricas_actuales['minimax_us'] += (t1 - t0) // 1000
     return val
 
 
@@ -241,6 +295,8 @@ def elegir_movimiento(tablero, turno, profundidad=2, historial=None):
     if turno == 0:
         mejor_val = float('-inf')
         alpha_raiz = float('-inf')
+        gc.disable()
+        
         for desde, hasta in legales:
             nuevo = tablero[:]
             hacer_movimiento(nuevo, desde, hasta)
@@ -250,9 +306,14 @@ def elegir_movimiento(tablero, turno, profundidad=2, historial=None):
                 mejor_val = val
                 mejor = (desde, hasta)
             alpha_raiz = max(alpha_raiz, mejor_val)
+            
+        gc.enable()
+        
     else:
         mejor_val = float('inf')
         beta_raiz = float('inf')
+        gc.disable()
+        
         for desde, hasta in legales:
             nuevo = tablero[:]
             hacer_movimiento(nuevo, desde, hasta)
@@ -262,6 +323,7 @@ def elegir_movimiento(tablero, turno, profundidad=2, historial=None):
                 mejor_val = val
                 mejor = (desde, hasta)
             beta_raiz = min(beta_raiz, mejor_val)
+        gc.enable()
 
     return mejor
 
@@ -270,36 +332,123 @@ def get_last_stats():
     """Retorna una copia de las métricas de la última búsqueda."""
     return dict(_search_stats)
 
+def guardar_metrica_turno(num_mov):
+
+    nodos = _search_stats['nodos']
+    profundidad = _search_stats['profundidad']
+
+    branching_factor = 0
+
+    if profundidad > 0 and nodos > 0:
+        branching_factor = round(
+            nodos ** (1 / profundidad),
+            3
+        )
+
+    _historial_metricas.append({
+        'turno': num_mov,
+
+        'evaluacion_us':
+            _metricas_actuales['evaluacion_us'],
+
+        'minimax_us':
+            _metricas_actuales['minimax_us'],
+
+        'nodos':
+            nodos,
+
+        'podas':
+            _search_stats['podas'],
+
+        'cache_hits':
+            _search_stats['cache_hits'],
+
+        'profundidad':
+            profundidad,
+
+        'branching_factor':
+            branching_factor,
+
+        'tiempo_por_nodo_us':
+            round(
+                _metricas_actuales['minimax_us'] /
+                max(nodos, 1),
+                3
+            )
+    })
+    
+def guardar_csv():
+
+    if not _historial_metricas:
+        return
+
+    os.makedirs("logs", exist_ok=True)
+
+    nombre = (
+        f"logs/bigO_"
+        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    )
+
+    with open(
+        nombre,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as f:
+
+        writer = csv.DictWriter(
+            f,
+            fieldnames=_historial_metricas[0].keys(),
+            delimiter=';'
+        )
+
+        writer.writeheader()
+        writer.writerows(_historial_metricas)
+
+    print(f"\nCSV guardado: {nombre}")
+
 
 # ── Main (sin bloqueos) ───────────────────────────────────────────────────────
 
 def main():
     tablero  = inicializar_ajedrez()
     turno    = 0
+    numero_movimiento = 0
     historial = {}
 
     while True:
-        imprimir_ajedrez(tablero)
+        #imprimir_ajedrez(tablero)
         est = estado_juego(tablero, turno)
         if est == "JAQUE_MATE":
             print("Jaque mate. Gana", "Negras" if turno == 0 else "Blancas")
+            guardar_csv()
             break
         elif est == "TABLAS":
             print("Empate por ahogado")
+            guardar_csv()
             break
 
         h = hash_tablero(tablero)
         historial[h] = historial.get(h, 0) + 1
         if historial[h] >= 3:
             print("Empate por repetición.")
+            guardar_csv()
             break
-
+        
+        reset_metricas()
         mov = elegir_movimiento(tablero, turno, historial=historial)
+        hacer_movimiento(tablero, mov[0], mov[1])
+
+        guardar_metrica_turno(numero_movimiento)
+
+        numero_movimiento += 1
+        
         if mov is None:
+            guardar_csv()
             break
         hacer_movimiento(tablero, mov[0], mov[1])
         turno = 1 - turno
-        input("Enter...")
+        #input("Enter...")
 
 
 if __name__ == "__main__":
