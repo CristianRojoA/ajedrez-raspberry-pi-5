@@ -2,11 +2,61 @@ import os
 os.environ.setdefault('KIVY_VIDEO', 'ffpyplayer')
 
 from kivy.config import Config
-Config.set('graphics', 'width', '1520')
-Config.set('graphics', 'height', '960')
-Config.set('graphics', 'resizable', '1')
-Config.set('graphics', 'minimum_width', '960')
-Config.set('graphics', 'minimum_height', '600')
+
+# ── Modo touch ───────────────────────────────────────────────────────────────
+# El touch HID en sí ya lo entrega SDL2 como eventos táctiles normales tanto en
+# Windows como en Linux; este "modo touch" solo configura la presentación de
+# kiosko (fullscreen 1920x1200, teclado virtual, sin cursor) para la pantalla
+# táctil USB Waveshare/UPERFECT 10.1" en Raspberry Pi 5 o en un PC.
+#
+# Se activa automáticamente si se detecta un digitalizador táctil. Se puede
+# forzar con la variable de entorno:  TOUCH=1  (kiosko) o  TOUCH=0  (ventana).
+def _hay_pantalla_tactil():
+    """Detecta un digitalizador táctil HID en Windows o Linux/Raspberry Pi."""
+    import sys
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            # SM_DIGITIZER = 94; bit NID_READY (0x80) = táctil operativo.
+            return bool(ctypes.windll.user32.GetSystemMetrics(94) & 0x80)
+        except Exception:
+            return False
+    # Linux / Raspberry Pi: un touchscreen reporta ejes multitouch absolutos.
+    try:
+        with open('/proc/bus/input/devices', 'r') as f:
+            data = f.read().lower()
+        return 'abs_mt' in data or 'touchscreen' in data
+    except Exception:
+        return False
+
+
+_touch_env = os.environ.get('TOUCH')      # '1', '0' o None
+if _touch_env is not None:
+    TOUCH_MODE = _touch_env == '1'        # override manual explícito
+else:
+    TOUCH_MODE = _hay_pantalla_tactil()   # autodetección Pi/PC
+
+if TOUCH_MODE:
+    # Resolución nativa a pantalla completa: imprescindible para que las
+    # coordenadas del touch coincidan con lo que se dibuja en pantalla.
+    Config.set('graphics', 'fullscreen', 'auto')   # 'auto' usa la resolución nativa
+    Config.set('graphics', 'width', '1920')
+    Config.set('graphics', 'height', '1200')
+    Config.set('graphics', 'resizable', '0')
+    # Evita los "puntos rojos" del multitouch simulado con el ratón y deja que
+    # el dispositivo táctil real genere los toques.
+    Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
+    # Teclado virtual en pantalla para los TextInput (modos entrenar/probar/chat),
+    # ya que en kiosko táctil no hay teclado físico.
+    Config.set('kivy', 'keyboard_mode', 'systemandmulti')
+    # Oculta el puntero del ratón (kiosko táctil).
+    Config.set('graphics', 'show_cursor', '0')
+else:
+    Config.set('graphics', 'width', '1520')
+    Config.set('graphics', 'height', '960')
+    Config.set('graphics', 'resizable', '1')
+    Config.set('graphics', 'minimum_width', '960')
+    Config.set('graphics', 'minimum_height', '600')
 
 import glob
 import threading
