@@ -1,0 +1,21 @@
+# ============================================================
+# requirements.txt — Motor de Ajedrez Autónomo con ML
+# Hardware: Raspberry Pi 5 | Python 3.11+
+# ============================================================
+
+# --- Interfaz gráfica ---
+kivy>=2.3.0
+ffpyplayer>=4.3.5        # backend de video para kivy.uix.video
+
+# --- Motor lógico / reglas FIDE ---
+python-chess>=1.10.0
+
+# --- Machine Learning (entrenamiento e inferencia) ---
+tensorflow>=2.16.0       # incluye keras integrado
+numpy>=1.26.0
+
+# --- Inferencia alternativa (producción en RPi 5) ---
+onnxruntime>=1.17.0      # alternativa ligera a TFLite
+
+# --- Configuración del modelo ---
+pyyaml>=6.0.1
