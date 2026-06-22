@@ -1,0 +1,23 @@
+{
+  "nombre": "tilin_ssj_2",
+  "timestamp": "20260505_174541",
+  "config": {
+    "entrenamiento": {
+      "batch_size": 256,
+      "epochs": 50,
+      "learning_rate": 0.001,
+      "paciencia": 8,
+      "validacion": 0.15
+    },
+    "modelo": {
+      "bloques_residuales": 4,
+      "dropout": 0.3,
+      "filtros": 128
+    },
+    "rutas": {
+      "modelos": "c:\\Users\\ignac\\Downloads\\ajedrez-raspberry-pi-5-main\\ajedrez-raspberry-pi-5-main\\modelos_ml",
+      "partidas": "c:\\Users\\ignac\\Downloads\\ajedrez-raspberry-pi-5-main\\ajedrez-raspberry-pi-5-main\\partidas\\partidas aprendizaje"
+    }
+  },
+  "policy_size": 4096
+}
