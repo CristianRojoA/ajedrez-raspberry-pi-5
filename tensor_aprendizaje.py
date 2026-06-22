@@ -31,7 +31,35 @@ import numpy as np
 import yaml
 import chess
 import chess.pgn
-from tensorflow import keras
+
+# TensorFlow usa lazy loading para evitar segfault en ARM/Python 3.12+
+# El import real ocurre solo cuando se instancia MotorML y se necesita Keras.
+# Esto evita que el crash de TF al inicializar CUDA/GPU tumbe toda la app.
+keras = None
+TF_DISPONIBLE = False
+
+def _cargar_tensorflow():
+    """Intenta importar TensorFlow una sola vez y cachea el resultado."""
+    global keras, TF_DISPONIBLE
+    if TF_DISPONIBLE:
+        return True
+    try:
+        import os as _os
+        # Forzar modo CPU para evitar crashes de inicialización GPU en Raspberry
+        _os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
+        _os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+        from tensorflow import keras as _keras
+        keras = _keras
+        TF_DISPONIBLE = True
+        print("[INFO] TensorFlow cargado correctamente — modo ML activo.")
+        return True
+    except Exception as _e:
+        keras = None
+        TF_DISPONIBLE = False
+        print(f"[WARN] TensorFlow no disponible: {_e}")
+        print("[WARN] Modo ML deshabilitado — el Minimax sigue activo.")
+        return False
+
 from datetime import datetime
 
 # python-chess imprime warnings por variantes desconocidas; los suprimimos
@@ -327,6 +355,9 @@ class MotorML:
 
     def construir_modelo(self):
         """Construye y compila la red dual (politica + valor)."""
+        if not _cargar_tensorflow():
+            print("[WARN] construir_modelo: TensorFlow no disponible, omitido.")
+            return None
         cfg     = self.config['modelo']
         filtros = cfg.get('filtros', 128)
         bloques = cfg.get('bloques_residuales', 4)
@@ -487,8 +518,11 @@ class MotorML:
         """
         from modeloraul import _minimax, _movimientos_legales, hacer_movimiento, _search_stats
 
-        if self.modelo is None:
-            raise RuntimeError("Modelo no cargado.")
+        if not _cargar_tensorflow() or self.modelo is None:
+            # Fallback: si no hay TF o modelo, usar Minimax puro
+            from modeloraul import elegir_movimiento
+            mov = elegir_movimiento(tablero, turno, profundidad)
+            return mov, None, None
 
         # 1. Obtener distribución de política de la red
         tensor = self.tablero_a_tensor(tablero, turno, num_mov)
@@ -640,6 +674,9 @@ class MotorML:
         """Carga el modelo mas reciente (o la ruta indicada).
         Retorna True si se cargo correctamente.
         """
+        if not _cargar_tensorflow():
+            print("[WARN] cargar_modelo: TensorFlow no disponible, modo ML deshabilitado.")
+            return False
         if ruta is None:
             archivos = sorted(
                 glob.glob(os.path.join(MODELOS_DIR, '*.keras'))
