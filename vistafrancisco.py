@@ -1,3 +1,19 @@
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_FORCE_CPU_ONLY'] = '1'
+
+# Pre-cargar tensor_aprendizaje ANTES de que Kivy inicie el contexto OpenGL.
+# Si TF se importa por primera vez dentro de un hilo de fondo con OpenGL activo,
+# el driver V3D de Broadcom (Raspberry Pi 5) hace SIGSEGV al inicializar XNNPACK.
+# Al importarlo aquí, la inicialización ocurre en el hilo principal antes de OpenGL.
+try:
+    import tensor_aprendizaje as _ta_preload
+    _ta_preload._cargar_tensorflow()
+    print("[INFO] tensor_aprendizaje pre-cargado OK")
+except Exception as _e:
+    print(f"[WARN] Pre-carga de tensor_aprendizaje falló: {_e}")
+
 from vista_config import *
 from vista_paneles import ChatPanel, MovePanel
 from vista_tablero import ChessBoard

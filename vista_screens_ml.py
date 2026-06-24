@@ -524,7 +524,16 @@ class ProbarModeloScreen(Screen):
         self._sel_ruta = None
         self._btn_probar.disabled = True
 
-        rutas = sorted(glob.glob(os.path.join(MODELOS_DIR_ML, '*.keras')))
+        # Buscar ambos formatos: .keras (TF completo) y .tflite (ARM-friendly)
+        rutas_keras  = sorted(glob.glob(os.path.join(MODELOS_DIR_ML, '*.keras')))
+        rutas_tflite = sorted(glob.glob(os.path.join(MODELOS_DIR_ML, '*.tflite')))
+        # Evitar duplicados: si hay un .tflite con el mismo nombre que un .keras,
+        # mostrar solo el .tflite (es el que funciona en la Raspberry)
+        nombres_tflite = {os.path.splitext(os.path.basename(r))[0] for r in rutas_tflite}
+        rutas_keras_filtradas = [r for r in rutas_keras
+                                 if os.path.splitext(os.path.basename(r))[0] not in nombres_tflite]
+        rutas = rutas_tflite + rutas_keras_filtradas
+
         if not rutas:
             self._mod_grid.add_widget(Label(
                 text="No hay modelos entrenados todavía.\nEntrena uno primero.",
@@ -596,7 +605,8 @@ class ProbarModeloScreen(Screen):
         def _borrar(_):
             try:
                 os.remove(ruta)
-                meta = ruta.replace('.keras', '_meta.json')
+                # Borrar metadata asociada (puede ser .keras o .tflite)
+                meta = ruta.replace('.keras', '_meta.json').replace('.tflite', '_meta.json')
                 if os.path.exists(meta):
                     os.remove(meta)
             except Exception as e:

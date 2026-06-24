@@ -216,32 +216,26 @@ def reset_metricas():
     _metricas_actuales['minimax_calls'] = 0
 
 def _minimax(tablero, prof, turno, alpha, beta):
-    
-    t0 = time.perf_counter_ns()
+    # NOTA: el tiempo NO se mide aquí dentro porque _minimax() es recursiva.
+    # Medir t0/t1 en cada llamada causaba doble conteo: el tiempo de un nodo
+    # padre ya incluye el de sus hijos, y cada nivel volvía a sumarlo al
+    # acumulador global. El tiempo real se mide UNA sola vez, en
+    # elegir_movimiento(), envolviendo todo el árbol de búsqueda.
 
     _metricas_actuales['minimax_calls'] += 1
-    
+
     key = (tuple(tablero), prof, turno)
     if key in _cache_minimax:
         _search_stats['cache_hits'] += 1
-        t1 = time.perf_counter_ns()
-
-        _metricas_actuales['minimax_us'] += (t1 - t0) // 1000
         return _cache_minimax[key]
 
     if prof == 0:
         _search_stats['nodos'] += 1
-        t1 = time.perf_counter_ns()
-
-        _metricas_actuales['minimax_us'] += (t1 - t0) // 1000
         return _evaluar(tablero)
 
     legales = _movimientos_legales(tablero, turno)
     if not legales:
         _search_stats['nodos'] += 1
-        t1 = time.perf_counter_ns()
-
-        _metricas_actuales['minimax_us'] += (t1 - t0) // 1000
         return _evaluar(tablero)
 
     if turno == 0:  # Blancas: maximizar
@@ -251,9 +245,13 @@ def _minimax(tablero, prof, turno, alpha, beta):
             hacer_movimiento(nuevo, desde, hasta)
             val = max(val, _minimax(nuevo, prof - 1, 1, alpha, beta))
             alpha = max(alpha, val)
-            if beta <= alpha:
-                _search_stats['podas'] += 1
-                break
+            # ===== PODA ALPHA-BETA (BLANCAS) =====
+            # Para DESHABILITAR la poda y medir el baseline sin Alpha-Beta,
+            # comenta las siguientes 3 líneas (if / incremento / break):
+#            if beta <= alpha:
+#                _search_stats['podas'] += 1
+#                break
+            # ===== FIN PODA (BLANCAS) =====
     else:           # Negras: minimizar
         val = float('inf')
         for desde, hasta in legales:
@@ -261,14 +259,15 @@ def _minimax(tablero, prof, turno, alpha, beta):
             hacer_movimiento(nuevo, desde, hasta)
             val = min(val, _minimax(nuevo, prof - 1, 0, alpha, beta))
             beta = min(beta, val)
-            if beta <= alpha:
-                _search_stats['podas'] += 1
-                break
+            # ===== PODA ALPHA-BETA (NEGRAS) =====
+            # Para DESHABILITAR la poda y medir el baseline sin Alpha-Beta,
+            # comenta las siguientes 3 líneas (if / incremento / break):
+#            if beta <= alpha:
+#                _search_stats['podas'] += 1
+#                break
+            # ===== FIN PODA (NEGRAS) =====
 
     _cache_minimax[key] = val
-    t1 = time.perf_counter_ns()
-
-    _metricas_actuales['minimax_us'] += (t1 - t0) // 1000
     return val
 
 
@@ -292,6 +291,12 @@ def elegir_movimiento(tablero, turno, profundidad=2, historial=None):
     _search_stats['movimientos_raiz'] = len(legales)
 
     mejor = None
+
+    # Tiempo medido UNA SOLA VEZ, envolviendo todo el árbol de búsqueda
+    # (raíz + toda la recursión). Antes se medía dentro de _minimax(), lo
+    # que sumaba el mismo tiempo varias veces por la recursión (doble conteo).
+    t0_busqueda = time.perf_counter_ns()
+
     if turno == 0:
         mejor_val = float('-inf')
         alpha_raiz = float('-inf')
@@ -324,6 +329,9 @@ def elegir_movimiento(tablero, turno, profundidad=2, historial=None):
                 mejor = (desde, hasta)
             beta_raiz = min(beta_raiz, mejor_val)
         gc.enable()
+
+    t1_busqueda = time.perf_counter_ns()
+    _metricas_actuales['minimax_us'] += (t1_busqueda - t0_busqueda) // 1000
 
     return mejor
 
@@ -437,16 +445,14 @@ def main():
         
         reset_metricas()
         mov = elegir_movimiento(tablero, turno, historial=historial)
-        hacer_movimiento(tablero, mov[0], mov[1])
 
-        guardar_metrica_turno(numero_movimiento)
-
-        numero_movimiento += 1
-        
         if mov is None:
             guardar_csv()
             break
+
         hacer_movimiento(tablero, mov[0], mov[1])
+        guardar_metrica_turno(numero_movimiento)
+        numero_movimiento += 1
         turno = 1 - turno
         #input("Enter...")
 

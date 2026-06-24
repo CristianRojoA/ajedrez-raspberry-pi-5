@@ -597,8 +597,8 @@ class GameScreen(Screen):
 
         chat = ChatPanel(
             size_hint=(1, None),
-            height=CHAT_HEIGHT if is_ml else 0,
-            opacity=1 if is_ml else 0,
+            height=CHAT_HEIGHT,
+            opacity=1,
         )
 
         left_col.add_widget(board_row)
@@ -615,6 +615,10 @@ class GameScreen(Screen):
         # Conectar callbacks ahora que panel existe
         board.on_move_cb   = panel.add_entry
         board.on_status_cb = panel.set_status
+
+        # Conectar el chat con el tablero y el panel de movimientos
+        chat.board       = board
+        panel.chat_panel = chat
 
         self._board  = board
         panel.board  = board

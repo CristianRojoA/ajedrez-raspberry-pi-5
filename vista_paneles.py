@@ -1,11 +1,27 @@
 from vista_config import *
 
+try:
+    from gemini_analista import AnalistaGemini
+except Exception:
+    AnalistaGemini = None
+
 
 class ChatPanel(BoxLayout):
-    """Panel de chat con el modelo ML — placeholder para implementación futura."""
+    """Panel de chat con análisis táctico vía Gemini.
+
+    El usuario puede:
+      - Escribir una pregunta (ej: "por qué moviste el caballo")
+      - Tocar una jugada del historial (el tablero llama a explicar_jugada)
+    Gemini explica la lógica táctica del movimiento combinando el material
+    real capturado con análisis posicional.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(orientation='vertical', padding=[8, 6, 8, 6], spacing=4, **kwargs)
+
+        self.board = None              # se asigna desde GameScreen
+        self._analista = None          # se crea perezosamente
+        self._pensando = False
 
         with self.canvas.before:
             Color(*UI_BG_CARD)
@@ -13,7 +29,7 @@ class ChatPanel(BoxLayout):
         self.bind(pos=self._upd_bg, size=self._upd_bg)
 
         self.add_widget(Label(
-            text="Chat — Modelo ML",
+            text="Analista Táctico",
             size_hint=(1, None), height=26,
             font_size=13, bold=True,
             color=UI_NAVY,
@@ -31,11 +47,11 @@ class ChatPanel(BoxLayout):
         scroll.add_widget(self._msg_grid)
         self.add_widget(scroll)
 
-        self._add_msg("[Sistema]", "Modelo ML no configurado. Próximamente.", system=True)
+        self._add_msg("[Analista]", "Toca una jugada del historial o pregúntame por qué se hizo un movimiento.", system=True)
 
         input_row = BoxLayout(orientation='horizontal', size_hint=(1, None), height=36, spacing=6)
         self._input = TextInput(
-            hint_text="Mensaje al modelo...",
+            hint_text="Ej: ¿por qué moviste el caballo?",
             multiline=False,
             size_hint=(1, 1),
             font_size=12,
@@ -74,20 +90,90 @@ class ChatPanel(BoxLayout):
         lbl.bind(texture_size=lambda w, v: setattr(w, 'height', v[1]))
         self._msg_grid.add_widget(lbl)
 
+    def _get_analista(self):
+        """Crea el analista la primera vez que se necesita."""
+        if self._analista is None and AnalistaGemini is not None:
+            self._analista = AnalistaGemini()
+        return self._analista
+
+    def _resolver_jugada(self, pregunta):
+        """Decide qué jugada del historial explicar según la pregunta.
+        Si la pregunta menciona un número de jugada lo usa; si no, usa la última."""
+        if not self.board or not self.board._history:
+            return None
+
+        hist = self.board._history
+
+        # ¿Mencionó un número? (ej: "jugada 5", "movimiento 3")
+        import re
+        m = re.search(r'\b(\d+)\b', pregunta)
+        if m:
+            idx = int(m.group(1)) - 1   # el usuario cuenta desde 1
+            if 0 <= idx < len(hist):
+                return hist[idx]
+
+        # Por defecto, la última jugada
+        return hist[-1]
+
     def _send(self, *_):
         txt = self._input.text.strip()
         if not txt:
             return
         self._add_msg("[Tú]", txt)
         self._input.text = ''
-        # TODO: conectar con el modelo ML cuando esté disponible
-        self._add_msg("[ML]", "Modelo no disponible aún.", system=True)
+
+        if self._pensando:
+            self._add_msg("[Analista]", "Espera, aún estoy pensando en la jugada anterior...", system=True)
+            return
+
+        entry = self._resolver_jugada(txt)
+        if entry is None:
+            self._add_msg("[Analista]", "Todavía no hay jugadas para analizar.", system=True)
+            return
+
+        self._preguntar_gemini(entry, txt)
+
+    def explicar_jugada(self, idx):
+        """Llamado desde el tablero/panel cuando el usuario toca una jugada."""
+        if not self.board or idx < 0 or idx >= len(self.board._history):
+            return
+        if self._pensando:
+            return
+        entry = self.board._history[idx]
+        self._add_msg("[Tú]", f"Explícame la jugada {idx + 1}")
+        self._preguntar_gemini(entry, None)
+
+    def _preguntar_gemini(self, entry, pregunta):
+        """Lanza la consulta a Gemini en segundo plano."""
+        analista = self._get_analista()
+        if analista is None:
+            self._add_msg("[Analista]", "Módulo Gemini no instalado (pip install google-generativeai).", system=True)
+            return
+        if not analista.disponible:
+            self._add_msg("[Analista]", f"No disponible: {analista.error}", system=True)
+            return
+
+        self._pensando = True
+        self._add_msg("[Analista]", "Analizando la jugada...", system=True)
+
+        def _on_respuesta(texto):
+            # Gemini responde en otro thread → volver al hilo de Kivy
+            Clock.schedule_once(lambda dt: self._mostrar_respuesta(texto), 0)
+
+        analista.explicar_async(entry, _on_respuesta, pregunta)
+
+    def _mostrar_respuesta(self, texto):
+        self._pensando = False
+        self._add_msg("[Analista]", texto)
 
 
 class MovePanel(BoxLayout):
 
     def __init__(self, **kwargs):
         super().__init__(orientation='vertical', padding=[10, 10, 10, 10], spacing=6, **kwargs)
+
+        self.board = None
+        self.chat_panel = None
 
         with self.canvas.before:
             Color(*UI_BG_CARD)
@@ -395,6 +481,9 @@ class MovePanel(BoxLayout):
             btn.background_color = COLOR_MOVE_SELECTED if i == idx else COLOR_MOVE_NORMAL
         if self.board:
             self.board.replay_move(idx)
+        # Si hay un panel de chat conectado, pedir la explicación táctica
+        if getattr(self, 'chat_panel', None) is not None:
+            self.chat_panel.explicar_jugada(idx)
 
     def ensure_paused(self):
         if self.board and not self.board._paused:
